@@ -1,10 +1,6 @@
 # casual_bayes
 
-**A pocket calculator for "how worried should I actually be?"**
-
-You just got a positive result on a scary medical test. An email looks like it might
-be a scam. A smoke alarm went off. Your gut says one thing, but the *actual* odds are
-often wildly different — and our intuition is famously bad at this.
+**A pocket calculator for bayes**
 
 `casual_bayes` does the math for you. You give it three plain-English numbers, and it
 tells you the real updated probability, with notes explaining what just happened.
@@ -16,9 +12,10 @@ Starting belief / prior: 1.00%
 Updated estimate / posterior: 9.17%
 ```
 
-> A test that's "90% accurate" came back positive for a 1-in-100 disease — and there's
-> still only a **9%** chance you actually have it. That's Bayes' theorem, and it's the
-> kind of answer this tool exists to give you.
+> A fraud detector flags a transaction as suspicious.
+> It catches 90% of real fraud, but it also incorrectly flags 5% of legitimate transactions.
+> Since only 1 in 1,000 transactions is actually fraudulent, a flagged transaction is still more likely to be legitimate than fraudulent.
+> Bayes’ theorem helps answer the real question: given the flag, how likely is fraud?
 
 No dependencies, no setup, no internet. It's a single Python file.
 
