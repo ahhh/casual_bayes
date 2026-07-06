@@ -90,7 +90,6 @@ h1 {
   font-family: var(--display); font-weight: 800; font-size: clamp(2.6rem, 7vw, 4.4rem);
   line-height: 1.02; letter-spacing: -0.02em; margin: 0 0 18px;
 }
-h1 .flip { color: var(--post); }
 .thesis { font-size: clamp(1.05rem, 2.2vw, 1.3rem); max-width: 40em; margin: 0 0 10px; color: var(--ink); }
 .thesis strong { font-weight: 600; }
 .subthesis { color: var(--muted); max-width: 44em; margin: 0; font-size: 0.95rem; }
@@ -296,10 +295,10 @@ footer p { margin: 0 0 8px; max-width: 52em; }
 <header class="masthead">
   <div class="wrap">
     <p class="eyebrow">Bayes’ theorem, no homework required</p>
-    <h1>Your gut says 90%.<br>The math says <span class="flip" id="hero-flip">9%</span>.</h1>
-    <p class="thesis"><strong>Casual Bayes</strong> is a pocket calculator for “how worried should I actually be?”
+    <h1>Casual Bayes</h1>
+    <p class="thesis">A pocket calculator for “how worried should I actually be?” — right in your browser.
       You give it three plain-English numbers; it gives you the honest updated probability, and shows its work.</p>
-    <p class="subthesis">Everything runs in your browser — nothing is sent anywhere. It’s the web version of the
+    <p class="subthesis">Everything is local — nothing is sent anywhere. It’s the web version of the
       <a href="https://github.com/ahhh/casual_bayes">casual_bayes command-line tool</a>.</p>
   </div>
 </header>
@@ -820,13 +819,6 @@ const EXAMPLES = [
     group: "Everyday life",
     items: [
       {
-        title: "“My test came back positive — should I panic?”",
-        blurb: "A disease affects 1 in 100 people. The test catches 90% of real cases but also flags 9% of healthy people. You tested positive.",
-        nums: "1% prior · 90% hit · 9% cry-wolf",
-        take: "→ still only ~9%",
-        tab: "classic", set: { "c-prior": "1%", "c-like": "90%", "c-fp": "9%" },
-      },
-      {
         title: "“Is this email a phishing scam?”",
         blurb: "About 5% of your mail is phishing, and this one has three separate red flags. Watch three weak clues multiply into near-certainty.",
         nums: "5% prior + 3 clues",
@@ -892,7 +884,7 @@ const EXAMPLES = [
       },
       {
         title: "“Would a second (and third) opinion settle it?”",
-        blurb: "Take the scary-medical-test example and repeat the same test three times, all positive. Watch 1% climb — and see why doctors retest before treating.",
+        blurb: "A screening test for a rare condition (1 in 100) comes back positive three times in a row. Watch 1% climb — and see why doctors retest before treating.",
         nums: "1% · 90% · 9%, ×3 positives",
         take: "→ ~91% after three",
         tab: "repeat", set: { "r-prior": "1%", "r-like": "90%", "r-fp": "9%", "r-rounds": "3" },
@@ -937,12 +929,6 @@ function loadExample(ex) {
 
 /* seed the “several clues” tab with two empty rows */
 addEvidenceRow(); addEvidenceRow();
-
-/* hero number: the medical-test example, computed live so the headline is honest */
-(function hero() {
-  const r = classic(0.01, 0.9, 0.09);
-  $("hero-flip").textContent = pct(r.posterior);
-})();
 </script>
 </body>
 </html>
