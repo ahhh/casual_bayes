@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Casual Bayes — a pocket calculator for “how worried should I actually be?”</title>
+<meta name="description" content="A friendly Bayes' theorem calculator. Three plain-English numbers in, one honest probability out. Runs entirely in your browser.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚖️</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --paper: #fbfaf6;
+  --card: #ffffff;
+  --grid: rgba(53, 103, 180, 0.10);
+  --ink: #212d3b;
+  --muted: #5c6878;
+  --faint: #8b95a3;
+  --line: #dcdfe6;
+  --line-strong: #b9bfca;
+  --prior: #3567b4;
+  --prior-soft: rgba(53, 103, 180, 0.12);
+  --post: #c6402c;
+  --post-soft: rgba(198, 64, 44, 0.10);
+  --post-deep: #a53523;
+  --track: #e9e7df;
+  --code-bg: #f1efe8;
+  --shadow: 0 1px 2px rgba(33, 45, 59, 0.06), 0 8px 24px -12px rgba(33, 45, 59, 0.18);
+  --display: "Bricolage Grotesque", "Avenir Next", "Trebuchet MS", sans-serif;
+  --body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --mono: "IBM Plex Mono", "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #10161e;
+    --card: #151d28;
+    --grid: rgba(74, 141, 224, 0.08);
+    --ink: #e5eaf1;
+    --muted: #93a0b0;
+    --faint: #718091;
+    --line: #2a3646;
+    --line-strong: #3c4a5d;
+    --prior: #4a8de0;
+    --prior-soft: rgba(74, 141, 224, 0.16);
+    --post: #e66756;
+    --post-soft: rgba(230, 103, 86, 0.14);
+    --post-deep: #ef8273;
+    --track: #232d3b;
+    --code-bg: #1b2532;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px -12px rgba(0, 0, 0, 0.6);
+  }
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}
+body {
+  margin: 0;
+  font-family: var(--body);
+  font-size: 16.5px;
+  line-height: 1.6;
+  color: var(--ink);
+  background-color: var(--paper);
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+.wrap { max-width: 1060px; margin: 0 auto; padding: 0 20px; }
+
+a { color: var(--prior); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+a:hover { color: var(--post); }
+:focus-visible { outline: 2px solid var(--prior); outline-offset: 2px; border-radius: 4px; }
+
+code, .mono { font-family: var(--mono); }
+code { background: var(--code-bg); padding: 0.1em 0.35em; border-radius: 4px; font-size: 0.88em; }
+
+/* ---------- masthead ---------- */
+.masthead { padding: 64px 0 40px; }
+.eyebrow {
+  font-family: var(--mono); font-size: 12px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--post); margin: 0 0 14px;
+}
+.eyebrow::before { content: "§ "; color: var(--faint); }
+h1 {
+  font-family: var(--display); font-weight: 800; font-size: clamp(2.6rem, 7vw, 4.4rem);
+  line-height: 1.02; letter-spacing: -0.02em; margin: 0 0 18px;
+}
+h1 .flip { color: var(--post); }
+.thesis { font-size: clamp(1.05rem, 2.2vw, 1.3rem); max-width: 40em; margin: 0 0 10px; color: var(--ink); }
+.thesis strong { font-weight: 600; }
+.subthesis { color: var(--muted); max-width: 44em; margin: 0; font-size: 0.95rem; }
+
+/* ---------- section headers ---------- */
+section { padding: 34px 0; }
+h2 {
+  font-family: var(--display); font-weight: 800; font-size: clamp(1.5rem, 3.4vw, 2rem);
+  letter-spacing: -0.015em; margin: 0 0 6px;
+}
+.section-note { color: var(--muted); margin: 0 0 22px; max-width: 46em; }
+
+/* ---------- calculator ---------- */
+.bench {
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+  box-shadow: var(--shadow); overflow: hidden;
+}
+.tabs {
+  display: flex; flex-wrap: wrap; gap: 0; border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--card) 70%, var(--paper));
+}
+.tab {
+  appearance: none; border: none; background: none; cursor: pointer;
+  font-family: var(--body); font-size: 0.92rem; font-weight: 500; color: var(--muted);
+  padding: 13px 18px 11px; border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.tab:hover { color: var(--ink); }
+.tab[aria-selected="true"] { color: var(--post); border-bottom-color: var(--post); font-weight: 600; }
+
+.calc-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); }
+.calc-grid > * { min-width: 0; }
+@media (max-width: 800px) { .calc-grid { grid-template-columns: 1fr; } }
+.pane-inputs { padding: 26px 26px 30px; border-right: 1px solid var(--line); }
+@media (max-width: 800px) { .pane-inputs { border-right: none; border-bottom: 1px solid var(--line); } }
+.pane-results { padding: 26px 26px 30px; min-height: 340px; }
+
+.mode-blurb { color: var(--muted); font-size: 0.9rem; margin: 0 0 18px; }
+.field { margin-bottom: 16px; }
+.field label { display: block; font-weight: 600; font-size: 0.9rem; margin-bottom: 3px; }
+.field .hint { display: block; color: var(--muted); font-size: 0.82rem; margin-bottom: 6px; }
+.field input[type="text"], .field input[type="number"] {
+  width: 100%; font-family: var(--mono); font-size: 1rem; color: var(--ink);
+  background: var(--paper); border: 1px solid var(--line-strong); border-radius: 8px;
+  padding: 9px 12px;
+}
+.field input:focus-visible { outline: 2px solid var(--prior); outline-offset: 0; border-color: var(--prior); }
+.field input.bad { border-color: var(--post); }
+
+fieldset.count-group { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px 4px; margin: 0 0 14px; }
+fieldset.count-group legend { font-size: 0.82rem; font-weight: 600; color: var(--muted); padding: 0 6px; }
+.count-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.derived { font-family: var(--mono); font-size: 0.8rem; color: var(--prior); margin: 2px 0 10px; min-height: 1.2em; }
+
+.evrow {
+  border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px;
+  margin-bottom: 10px; position: relative; background: color-mix(in srgb, var(--card) 60%, var(--paper));
+}
+.evrow .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.evrow .field { margin-bottom: 10px; }
+.evrow .remove {
+  position: absolute; top: 8px; right: 8px; appearance: none; cursor: pointer;
+  border: 1px solid var(--line); background: var(--card); color: var(--muted);
+  border-radius: 6px; font-size: 0.75rem; padding: 2px 8px; font-family: var(--body);
+}
+.evrow .remove:hover { color: var(--post); border-color: var(--post); }
+.btn-add {
+  appearance: none; cursor: pointer; font-family: var(--body); font-weight: 600; font-size: 0.88rem;
+  color: var(--prior); background: var(--prior-soft); border: 1px dashed var(--prior);
+  border-radius: 8px; padding: 8px 14px; width: 100%;
+}
+.btn-add:hover { background: color-mix(in srgb, var(--prior) 20%, transparent); }
+
+/* ---------- results ---------- */
+.placeholder { color: var(--muted); font-size: 0.95rem; padding-top: 8px; }
+.err {
+  color: var(--post-deep); background: var(--post-soft); border: 1px solid var(--post);
+  border-radius: 10px; padding: 12px 16px; font-size: 0.92rem;
+}
+.verdict-label {
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--muted); margin: 0 0 2px;
+}
+.verdict { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 6px; }
+.verdict .post-num {
+  font-family: var(--mono); font-weight: 600; font-size: clamp(2.4rem, 6vw, 3.4rem);
+  line-height: 1; color: var(--post); letter-spacing: -0.02em;
+}
+.verdict .from { color: var(--muted); font-size: 0.95rem; }
+.verdict .from b { color: var(--prior); font-family: var(--mono); font-weight: 600; }
+.headline { margin: 4px 0 20px; font-size: 0.98rem; max-width: 36em; }
+
+/* belief meter — the signature */
+.meter { margin: 6px 0 22px; }
+.meter .lane { position: relative; height: 84px; }
+.meter .rail {
+  position: absolute; left: 0; right: 0; top: 42px; height: 6px;
+  background: var(--track); border-radius: 3px;
+}
+.meter .span {
+  position: absolute; top: 42px; height: 6px; background: var(--post-soft);
+  border-radius: 3px; transition: left 0.7s cubic-bezier(.2,.8,.2,1), width 0.7s cubic-bezier(.2,.8,.2,1);
+}
+.meter .pin {
+  position: absolute; top: 37px; width: 16px; height: 16px; border-radius: 50%;
+  transform: translateX(-50%); border: 2.5px solid var(--card);
+  box-shadow: 0 0 0 1.5px currentColor; background: currentColor;
+  transition: left 0.7s cubic-bezier(.2,.8,.2,1);
+}
+.meter .pin.prior { color: var(--prior); }
+.meter .pin.post { color: var(--post); }
+.meter .tag {
+  position: absolute; font-family: var(--mono); font-size: 0.78rem; white-space: nowrap;
+  transform: translateX(-50%); transition: left 0.7s cubic-bezier(.2,.8,.2,1);
+}
+.meter .tag.prior { top: 61px; color: var(--prior); }
+.meter .tag.post { top: 16px; color: var(--post); font-weight: 600; }
+.meter .tag.edge-l { transform: translateX(-8px); }
+.meter .tag.edge-r { transform: translateX(calc(-100% + 8px)); }
+.meter .tag .word { color: var(--muted); font-weight: 400; }
+.meter .ticks {
+  display: flex; justify-content: space-between; font-family: var(--mono);
+  font-size: 0.7rem; color: var(--faint); border-top: 0; margin-top: 2px;
+}
+
+.figure-caption { font-size: 0.82rem; color: var(--muted); margin: -12px 0 20px; }
+
+/* details table */
+.detail { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin-bottom: 18px; }
+.detail th, .detail td { text-align: left; padding: 7px 10px 7px 0; border-bottom: 1px dashed var(--line); vertical-align: baseline; }
+.detail th { font-weight: 600; white-space: nowrap; width: 1%; padding-right: 18px; }
+@media (max-width: 600px) { .detail th { white-space: normal; min-width: 7em; padding-right: 10px; } }
+.detail td { font-family: var(--mono); font-size: 0.85rem; }
+.detail td .why { display: block; font-family: var(--body); color: var(--muted); font-size: 0.82rem; }
+
+/* trajectory rows */
+.rounds { margin: 0 0 18px; padding: 0; list-style: none; }
+.rounds li { padding: 9px 0; border-bottom: 1px dashed var(--line); }
+.rounds .rname { font-weight: 600; font-size: 0.88rem; }
+.rounds .rmath { font-family: var(--mono); font-size: 0.84rem; color: var(--muted); }
+.rounds .rmath .before { color: var(--prior); }
+.rounds .rmath .after { color: var(--post); font-weight: 600; }
+.minirail { position: relative; height: 5px; background: var(--track); border-radius: 3px; margin-top: 7px; }
+.minirail .fill { position: absolute; top: 0; height: 5px; border-radius: 3px; background: var(--post-soft); }
+.minirail .dot { position: absolute; top: -2.5px; width: 10px; height: 10px; border-radius: 50%; transform: translateX(-50%); }
+.minirail .dot.b { background: var(--prior); }
+.minirail .dot.a { background: var(--post); }
+
+.notes { margin: 0; padding: 0 0 0 1.2em; font-size: 0.88rem; color: var(--muted); }
+.notes li { margin-bottom: 5px; }
+.caution-line {
+  font-size: 0.82rem; color: var(--muted); border-top: 1px solid var(--line);
+  margin-top: 18px; padding-top: 12px;
+}
+.caution-line::before { content: "⚠ "; color: var(--post); }
+
+/* ---------- examples ---------- */
+.ex-group-label {
+  font-family: var(--mono); font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--muted); margin: 26px 0 12px;
+}
+.ex-group-label:first-of-type { margin-top: 0; }
+.ex-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+@media (max-width: 900px) { .ex-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 600px) { .ex-grid { grid-template-columns: 1fr; } }
+.ex-card {
+  appearance: none; text-align: left; cursor: pointer; font-family: var(--body);
+  background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+  padding: 16px 18px; color: var(--ink); display: flex; flex-direction: column; gap: 8px;
+  transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+.ex-card:hover { border-color: var(--post); transform: translateY(-2px); box-shadow: var(--shadow); }
+.ex-card h3 { font-family: var(--display); font-weight: 600; font-size: 1.05rem; margin: 0; line-height: 1.3; }
+.ex-card p { margin: 0; font-size: 0.86rem; color: var(--muted); line-height: 1.5; }
+.ex-card .ex-nums { font-family: var(--mono); font-size: 0.78rem; color: var(--prior); margin-top: auto; }
+.ex-card .ex-nums .arrow { color: var(--post); font-weight: 600; }
+
+/* ---------- three numbers ---------- */
+.threes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; counter-reset: threes; }
+@media (max-width: 800px) { .threes { grid-template-columns: 1fr; } }
+.three {
+  background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px;
+}
+.three h3 { font-family: var(--display); font-weight: 600; font-size: 1.1rem; margin: 0 0 6px; }
+.three h3 code { color: var(--post); background: var(--post-soft); }
+.three p { margin: 0 0 8px; font-size: 0.9rem; color: var(--muted); }
+.three .eg { font-size: 0.86rem; font-style: italic; color: var(--ink); margin: 0; }
+.trap {
+  margin-top: 18px; background: var(--post-soft); border: 1px solid var(--post);
+  border-radius: 12px; padding: 16px 20px; font-size: 0.93rem; max-width: 60em;
+}
+.trap strong { color: var(--post-deep); }
+
+/* ---------- footer ---------- */
+footer { border-top: 1px solid var(--line); margin-top: 30px; padding: 28px 0 48px; color: var(--muted); font-size: 0.88rem; }
+footer p { margin: 0 0 8px; max-width: 52em; }
+
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <div class="wrap">
+    <p class="eyebrow">Bayes’ theorem, no homework required</p>
+    <h1>Your gut says 90%.<br>The math says <span class="flip" id="hero-flip">9%</span>.</h1>
+    <p class="thesis"><strong>Casual Bayes</strong> is a pocket calculator for “how worried should I actually be?”
+      You give it three plain-English numbers; it gives you the honest updated probability, and shows its work.</p>
+    <p class="subthesis">Everything runs in your browser — nothing is sent anywhere. It’s the web version of the
+      <a href="https://github.com/ahhh/casual_bayes">casual_bayes command-line tool</a>.</p>
+  </div>
+</header>
+
+<main>
+  <section id="calc" aria-label="Calculator">
+    <div class="wrap">
+      <div class="bench">
+        <div class="tabs" role="tablist" aria-label="Calculator mode">
+          <button class="tab" role="tab" id="tab-classic" aria-selected="true" aria-controls="panel-classic">One clue</button>
+          <button class="tab" role="tab" id="tab-multi" aria-selected="false" aria-controls="panel-multi">Several clues</button>
+          <button class="tab" role="tab" id="tab-repeat" aria-selected="false" aria-controls="panel-repeat">Repeat a test</button>
+          <button class="tab" role="tab" id="tab-counts" aria-selected="false" aria-controls="panel-counts">From counts</button>
+        </div>
+        <div class="calc-grid">
+          <div class="pane-inputs">
+
+            <div id="panel-classic" role="tabpanel" aria-labelledby="tab-classic">
+              <p class="mode-blurb">One yes/no question, one piece of evidence. This is the classic Bayes update.
+                Type percentages (<code>20%</code>) or decimals (<code>0.2</code>) — both work.</p>
+              <div class="field">
+                <label for="c-prior">Prior — how common is this, before any evidence?</label>
+                <span class="hint">The base rate. “1% of people my age have this disease.”</span>
+                <input type="text" id="c-prior" inputmode="decimal" placeholder="1%" autocomplete="off">
+              </div>
+              <div class="field">
+                <label for="c-like">Likelihood — if it’s TRUE, how often does this clue show up?</label>
+                <span class="hint">“The test catches 90% of real cases.”</span>
+                <input type="text" id="c-like" inputmode="decimal" placeholder="90%" autocomplete="off">
+              </div>
+              <div class="field">
+                <label for="c-fp">False-positive rate — if it’s FALSE, how often does the clue show up anyway?</label>
+                <span class="hint">The number everyone forgets. “The test wrongly flags 9% of healthy people.”</span>
+                <input type="text" id="c-fp" inputmode="decimal" placeholder="9%" autocomplete="off">
+              </div>
+            </div>
+
+            <div id="panel-multi" role="tabpanel" aria-labelledby="tab-multi" hidden>
+              <p class="mode-blurb">Several independent clues, applied one at a time — each answer becomes the
+                starting point for the next clue. (This covers both the CLI’s <code>sequential</code> and
+                <code>naive</code> modes; they agree on the final answer.)</p>
+              <div class="field">
+                <label for="m-prior">Prior — before any of the clues</label>
+                <input type="text" id="m-prior" inputmode="decimal" placeholder="5%" autocomplete="off">
+              </div>
+              <div id="ev-list"></div>
+              <button type="button" class="btn-add" id="ev-add">+ Add another clue</button>
+            </div>
+
+            <div id="panel-repeat" role="tabpanel" aria-labelledby="tab-repeat" hidden>
+              <p class="mode-blurb">“What if I took the same test again… and again?” Repeats one identical update
+                as a sensitivity check — like asking for a second and third opinion.</p>
+              <div class="field">
+                <label for="r-prior">Prior</label>
+                <input type="text" id="r-prior" inputmode="decimal" placeholder="1%" autocomplete="off">
+              </div>
+              <div class="field">
+                <label for="r-like">Likelihood per test</label>
+                <input type="text" id="r-like" inputmode="decimal" placeholder="90%" autocomplete="off">
+              </div>
+              <div class="field">
+                <label for="r-fp">False-positive rate per test</label>
+                <input type="text" id="r-fp" inputmode="decimal" placeholder="9%" autocomplete="off">
+              </div>
+              <div class="field">
+                <label for="r-rounds">How many times does it come back positive?</label>
+                <input type="number" id="r-rounds" min="1" max="12" step="1" value="3">
+              </div>
+            </div>
+
+            <div id="panel-counts" role="tabpanel" aria-labelledby="tab-counts" hidden>
+              <p class="mode-blurb">Working from raw tallies — a study, a spreadsheet, your own records?
+                Enter the counts and the percentages are derived for you.</p>
+              <fieldset class="count-group">
+                <legend>The base rate</legend>
+                <div class="count-pair">
+                  <div class="field"><label for="k-h">Had the condition</label><input type="text" id="k-h" inputmode="numeric" placeholder="30" autocomplete="off"></div>
+                  <div class="field"><label for="k-total">Out of a total of</label><input type="text" id="k-total" inputmode="numeric" placeholder="200" autocomplete="off"></div>
+                </div>
+                <p class="derived" id="k-d-prior"></p>
+              </fieldset>
+              <fieldset class="count-group">
+                <legend>When it’s true</legend>
+                <div class="count-pair">
+                  <div class="field"><label for="k-eh">Showed the clue</label><input type="text" id="k-eh" inputmode="numeric" placeholder="24" autocomplete="off"></div>
+                  <div class="field"><label for="k-hd">Out of those with it</label><input type="text" id="k-hd" inputmode="numeric" placeholder="30" autocomplete="off"></div>
+                </div>
+                <p class="derived" id="k-d-like"></p>
+              </fieldset>
+              <fieldset class="count-group">
+                <legend>When it’s false</legend>
+                <div class="count-pair">
+                  <div class="field"><label for="k-enh">Showed the clue anyway</label><input type="text" id="k-enh" inputmode="numeric" placeholder="17" autocomplete="off"></div>
+                  <div class="field"><label for="k-nhd">Out of those without it</label><input type="text" id="k-nhd" inputmode="numeric" placeholder="170" autocomplete="off"></div>
+                </div>
+                <p class="derived" id="k-d-fp"></p>
+              </fieldset>
+            </div>
+
+          </div>
+          <div class="pane-results" id="results" aria-live="polite">
+            <p class="placeholder">Fill in the numbers on the left — or pick one of the worked examples below —
+              and the updated probability appears here, live.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="examples" aria-label="Worked examples">
+    <div class="wrap">
+      <h2>Try it on a real problem</h2>
+      <p class="section-note">Each card loads its numbers into the calculator above, so you can see the setup
+        and then poke at it. Change one number and watch how much the answer moves.</p>
+      <div id="ex-root"></div>
+    </div>
+  </section>
+
+  <section id="numbers" aria-label="The three numbers explained">
+    <div class="wrap">
+      <h2>The only three numbers you need</h2>
+      <p class="section-note">Every problem on this page boils down to the same three questions.</p>
+      <div class="threes">
+        <div class="three">
+          <h3><code>prior</code> — the base rate</h3>
+          <p>Before any evidence at all, how common is the thing you’re worried about?</p>
+          <p class="eg">“About 1% of people my age have this disease.”</p>
+        </div>
+        <div class="three">
+          <h3><code>likelihood</code> — the hit rate</h3>
+          <p>If the thing is <em>true</em>, how often does this clue show up?</p>
+          <p class="eg">“The test catches 90% of real cases.”</p>
+        </div>
+        <div class="three">
+          <h3><code>false-positive</code> — the cry-wolf rate</h3>
+          <p>If the thing is <em>false</em>, how often does the clue show up <em>anyway</em>?</p>
+          <p class="eg">“The test also flags 9% of perfectly healthy people.”</p>
+        </div>
+      </div>
+      <div class="trap">
+        <strong>The trap everyone falls into:</strong> a test can be “90% accurate” and still be wrong most of the
+        time it goes off — if the thing it’s testing for is rare. Rare things stay rare even after a positive result.
+        That gap between “accuracy” and “what a positive result actually means for you” is the whole reason this
+        tool exists.
+      </div>
+      <div class="trap" style="margin-top: 12px;">
+        <strong>The other trap — double counting:</strong> in “several clues” mode, the clues must be genuinely
+        independent. If two of your clues are secretly the same signal (a sketchy domain <em>and</em> a sketchy
+        link are both just “sketchy sender”), the math will make you far too confident. When in doubt, use fewer,
+        truly separate clues.
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap">
+      <p>Casual Bayes is a single HTML file; the math runs locally and nothing leaves your browser.
+        Source, plus the command-line version with a <code>--json</code> flag and a natural-language mode, at
+        <a href="https://github.com/ahhh/casual_bayes">github.com/ahhh/casual_bayes</a>.</p>
+      <p>Remember: the answer is only as honest as the numbers you feed it.</p>
+    </div>
+  </footer>
+</main>
+
+<script>
+"use strict";
+/* ============ math core — ported from casual_bayes.py ============ */
+const EPS = 1e-12;
+
+function parseProb(raw, name) {
+  if (raw == null || String(raw).trim() === "") throw new Error(`Missing ${name}.`);
+  let s = String(raw).trim();
+  let x;
+  if (s.endsWith("%")) x = parseFloat(s.slice(0, -1)) / 100;
+  else x = parseFloat(s);
+  if (!isFinite(x)) throw new Error(`Couldn’t read ${name} — try “20%” or “0.2”.`);
+  if (x > 1 && x <= 100) x /= 100;
+  if (x < 0 || x > 1) throw new Error(`${name} must be between 0 and 1 (or 0% and 100%).`);
+  return x;
+}
+
+function parseCount(raw, name) {
+  if (raw == null || String(raw).trim() === "") throw new Error(`Missing ${name}.`);
+  const x = parseFloat(String(raw).trim());
+  if (!isFinite(x) || x < 0) throw new Error(`${name} must be a non-negative number.`);
+  return x;
+}
+
+function safeDiv(a, b, label) {
+  if (Math.abs(b) <= EPS) throw new Error(`Can’t divide by zero while computing ${label}.`);
+  return a / b;
+}
+
+function bayesFactor(like, fp) {
+  if (fp === 0 && like > 0) return Infinity;
+  return safeDiv(like, fp, "the Bayes factor");
+}
+
+function classic(prior, like, fp) {
+  if (prior <= 0) return { prior, posterior: 0, like, fp, edge: "A 0% prior can’t be moved upward by any finite evidence." };
+  if (prior >= 1) return { prior, posterior: 1, like, fp, edge: "A 100% prior can’t be moved downward by any finite evidence." };
+  const num = prior * like;
+  const denom = num + (1 - prior) * fp;
+  const posterior = safeDiv(num, denom, "the posterior");
+  const bf = bayesFactor(like, fp);
+  const priorOdds = prior / (1 - prior);
+  const postOdds = isFinite(bf) ? priorOdds * bf : Infinity;
+  return { prior, posterior, like, fp, bf, priorOdds, postOdds, evidenceProb: denom };
+}
+
+function multi(prior, evidence) {
+  if (!evidence.length) throw new Error("Add at least one clue.");
+  let current = prior;
+  let totalBF = 1;
+  const rounds = evidence.map((ev, i) => {
+    const r = classic(current, ev.like, ev.fp);
+    const row = { round: i + 1, name: ev.name || `clue ${i + 1}`, before: current, after: r.posterior, bf: r.bf };
+    current = r.posterior;
+    if (r.bf !== undefined) totalBF = isFinite(r.bf) && isFinite(totalBF) ? totalBF * r.bf : Infinity;
+    return row;
+  });
+  return { prior, posterior: current, rounds, totalBF };
+}
+
+/* ============ formatting ============ */
+function pct(x) {
+  const v = x * 100;
+  if (v <= 0) return "0%";
+  if (v >= 100) return "100%";
+  if (v < 0.01) return "<0.01%";
+  let s;
+  if (v >= 99.5) s = Math.min(v, 99.99).toFixed(2);
+  else if (v >= 10) s = v.toFixed(1);
+  else s = v.toFixed(2);
+  s = s.replace(/\.?0+$/, "");
+  if (s === "100") s = "99.99";
+  return s + "%";
+}
+function num(x) {
+  if (!isFinite(x)) return "∞";
+  return Number(x.toPrecision(3)).toLocaleString("en-US", { maximumFractionDigits: 3 });
+}
+function odds(x) {
+  if (!isFinite(x)) return "∞";
+  if (x >= 1) return `${num(x)} : 1`;
+  if (x <= 0) return "0 : 1";
+  return `1 : ${num(1 / x)}`;
+}
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+/* ============ rendering ============ */
+const $ = id => document.getElementById(id);
+const results = $("results");
+
+function meterHTML(prior, posterior) {
+  const p = (prior * 100).toFixed(2), q = (posterior * 100).toFixed(2);
+  const lo = Math.min(prior, posterior) * 100, w = Math.abs(posterior - prior) * 100;
+  const clamp = v => v < 0.1 ? " edge-l" : v > 0.9 ? " edge-r" : "";
+  return `
+  <div class="meter" role="img" aria-label="Belief moved from ${pct(prior)} to ${pct(posterior)} on a 0 to 100 percent scale.">
+    <div class="lane">
+      <div class="rail"></div>
+      <div class="span" style="left:${lo}%; width:${w}%"></div>
+      <div class="pin prior" style="left:${p}%"></div>
+      <div class="pin post" style="left:${q}%"></div>
+      <span class="tag prior${clamp(prior)}" style="left:${p}%"><span class="word">before</span> ${pct(prior)}</span>
+      <span class="tag post${clamp(posterior)}" style="left:${q}%"><span class="word">after</span> ${pct(posterior)}</span>
+    </div>
+    <div class="ticks" aria-hidden="true"><span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span></div>
+  </div>`;
+}
+
+function headline(prior, posterior) {
+  if (posterior === prior) return "The evidence didn’t move the needle at all.";
+  const up = posterior > prior;
+  const ratio = up ? posterior / Math.max(prior, EPS) : prior / Math.max(posterior, EPS);
+  const strength =
+    posterior >= 0.99 ? "It’s now about as close to certain as evidence gets." :
+    posterior >= 0.75 ? "It’s now more likely true than not — by a lot." :
+    posterior >= 0.5 ? "It just crossed the more-likely-than-not line." :
+    posterior >= 0.15 ? "Worth taking seriously, but still more likely a false alarm than the real thing." :
+    "Still unlikely — the base rate is doing its job.";
+  const move = ratio >= 1.15 ? `${up ? "up" : "down"} about ${num(ratio)}×` : "barely at all";
+  return `The evidence moved your belief ${move}, from <b style="color:var(--prior)">${pct(prior)}</b> to
+    <b style="color:var(--post)">${pct(posterior)}</b>. ${strength}`;
+}
+
+function bfRow(bf) {
+  if (bf === undefined) return "";
+  let why;
+  if (!isFinite(bf)) why = "A zero false-positive rate makes this evidence infinitely telling — treat that with suspicion.";
+  else if (bf > 1) why = `This clue shows up ${num(bf)}× more often when the thing is true than when it’s false.`;
+  else if (bf < 1) why = `This clue is evidence <em>against</em>: it’s ${num(1 / bf)}× more common when the thing is false.`;
+  else why = "This clue is equally common either way — it tells you nothing.";
+  return `<tr><th scope="row">Bayes factor</th><td>${num(bf)}×<span class="why">${why}</span></td></tr>`;
+}
+
+function renderClassic(r, opts = {}) {
+  if (r.edge) {
+    results.innerHTML = `<div class="err">${esc(r.edge)} Posterior stays at ${pct(r.posterior)}.
+      If you’re truly at ${pct(r.prior)}, no test result can change your mind — which is usually a sign the prior is too extreme.</div>`;
+    return;
+  }
+  const extra = opts.extraRows || "";
+  results.innerHTML = `
+    <p class="verdict-label">Updated estimate</p>
+    <div class="verdict">
+      <span class="post-num">${pct(r.posterior)}</span>
+      <span class="from">was <b>${pct(r.prior)}</b> before the evidence</span>
+    </div>
+    <p class="headline">${headline(r.prior, r.posterior)}</p>
+    ${meterHTML(r.prior, r.posterior)}
+    <table class="detail">
+      <caption class="sr-only">Calculation details</caption>
+      ${extra}
+      ${bfRow(r.bf)}
+      <tr><th scope="row">In odds form</th><td>${odds(r.priorOdds)} &nbsp;→&nbsp; ${odds(r.postOdds)}
+        <span class="why">Convert belief to odds, multiply by the Bayes factor, convert back. Same answer, different lens.</span></td></tr>
+      <tr><th scope="row">Chance of this evidence at all</th><td>${pct(r.evidenceProb)}
+        <span class="why">How often you’d expect to see this clue across everyone, true cases and false alarms combined.</span></td></tr>
+    </table>
+    ${opts.notes ? `<ul class="notes">${opts.notes.map(n => `<li>${n}</li>`).join("")}</ul>` : ""}
+    <p class="caution-line">The estimate is only as good as the assumptions behind these three numbers.</p>`;
+  requestAnimationFrame(() => animateMeter(r.prior, r.posterior));
+}
+
+function animateMeter(prior, posterior) {
+  const lane = results.querySelector(".meter .lane");
+  if (!lane || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const span = lane.querySelector(".span"), pin = lane.querySelector(".pin.post"), tag = lane.querySelector(".tag.post");
+  const p = prior * 100;
+  const targets = { span: [Math.min(prior, posterior) * 100, Math.abs(posterior - prior) * 100], pos: posterior * 100 };
+  span.style.left = p + "%"; span.style.width = "0%";
+  pin.style.left = p + "%"; tag.style.left = p + "%";
+  void lane.offsetWidth;
+  span.style.left = targets.span[0] + "%"; span.style.width = targets.span[1] + "%";
+  pin.style.left = targets.pos + "%"; tag.style.left = targets.pos + "%";
+}
+
+function renderMulti(r) {
+  const rows = r.rounds.map(row => {
+    const lo = Math.min(row.before, row.after) * 100, w = Math.abs(row.after - row.before) * 100;
+    return `<li>
+      <span class="rname">${esc(row.name)}</span>
+      <span class="rmath"> — <span class="before">${pct(row.before)}</span> → <span class="after">${pct(row.after)}</span>
+        (BF ${num(row.bf)}×)</span>
+      <div class="minirail"><div class="fill" style="left:${lo}%;width:${w}%"></div>
+        <div class="dot b" style="left:${row.before * 100}%"></div><div class="dot a" style="left:${row.after * 100}%"></div></div>
+    </li>`;
+  }).join("");
+  results.innerHTML = `
+    <p class="verdict-label">Updated estimate, after all ${r.rounds.length} clue${r.rounds.length > 1 ? "s" : ""}</p>
+    <div class="verdict">
+      <span class="post-num">${pct(r.posterior)}</span>
+      <span class="from">was <b>${pct(r.prior)}</b> before any of them</span>
+    </div>
+    <p class="headline">${headline(r.prior, r.posterior)}</p>
+    ${meterHTML(r.prior, r.posterior)}
+    <ol class="rounds">${rows}</ol>
+    <table class="detail">
+      <tr><th scope="row">Combined Bayes factor</th><td>${num(r.totalBF)}×
+        <span class="why">The individual factors multiply — that’s why several weak-looking clues can add up to near-certainty.</span></td></tr>
+    </table>
+    <ul class="notes">
+      <li>Each clue’s answer becomes the starting point for the next clue.</li>
+      <li>This assumes the clues are independent. Don’t count the same signal twice.</li>
+    </ul>
+    <p class="caution-line">Correlated or double-counted clues will make this result too confident.</p>`;
+  requestAnimationFrame(() => animateMeter(r.prior, r.posterior));
+}
+
+function renderError(msg) {
+  results.innerHTML = `<div class="err">${esc(msg)}</div>`;
+}
+function renderPlaceholder() {
+  results.innerHTML = `<p class="placeholder">Fill in the numbers on the left — or pick one of the worked examples
+    below — and the updated probability appears here, live.</p>`;
+}
+
+/* ============ tabs ============ */
+const TABS = ["classic", "multi", "repeat", "counts"];
+let activeTab = "classic";
+function selectTab(name) {
+  activeTab = name;
+  for (const t of TABS) {
+    $("tab-" + t).setAttribute("aria-selected", String(t === name));
+    $("panel-" + t).hidden = t !== name;
+  }
+  recompute();
+}
+for (const t of TABS) $("tab-" + t).addEventListener("click", () => selectTab(t));
+
+/* ============ evidence rows (several clues) ============ */
+let evSeq = 0;
+function addEvidenceRow(vals = {}) {
+  const id = ++evSeq;
+  const div = document.createElement("div");
+  div.className = "evrow";
+  div.innerHTML = `
+    <div class="field">
+      <label for="ev-name-${id}">Clue name</label>
+      <input type="text" id="ev-name-${id}" data-role="name" placeholder="e.g. urgent wire-transfer ask" autocomplete="off">
+    </div>
+    <div class="pair">
+      <div class="field">
+        <label for="ev-like-${id}">Likelihood</label>
+        <input type="text" id="ev-like-${id}" data-role="like" inputmode="decimal" placeholder="70%" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="ev-fp-${id}">False-positive</label>
+        <input type="text" id="ev-fp-${id}" data-role="fp" inputmode="decimal" placeholder="2%" autocomplete="off">
+      </div>
+    </div>
+    <button type="button" class="remove" aria-label="Remove this clue">remove</button>`;
+  div.querySelector('[data-role="name"]').value = vals.name || "";
+  div.querySelector('[data-role="like"]').value = vals.like || "";
+  div.querySelector('[data-role="fp"]').value = vals.fp || "";
+  div.querySelector(".remove").addEventListener("click", () => { div.remove(); recompute(); });
+  $("ev-list").appendChild(div);
+  return div;
+}
+$("ev-add").addEventListener("click", () => { addEvidenceRow().querySelector("input").focus(); recompute(); });
+
+function readEvidenceRows() {
+  const rows = [];
+  for (const div of document.querySelectorAll("#ev-list .evrow")) {
+    const name = div.querySelector('[data-role="name"]').value.trim();
+    const like = div.querySelector('[data-role="like"]').value.trim();
+    const fp = div.querySelector('[data-role="fp"]').value.trim();
+    if (!name && !like && !fp) continue;
+    rows.push({
+      name: name || `clue ${rows.length + 1}`,
+      like: parseProb(like, `“${name || "clue " + (rows.length + 1)}” likelihood`),
+      fp: parseProb(fp, `“${name || "clue " + (rows.length + 1)}” false-positive rate`),
+    });
+  }
+  return rows;
+}
+
+/* ============ recompute ============ */
+function blank(...ids) { return ids.every(id => $(id).value.trim() === ""); }
+
+function recompute() {
+  try {
+    if (activeTab === "classic") {
+      if (blank("c-prior", "c-like", "c-fp")) return renderPlaceholder();
+      renderClassic(classic(
+        parseProb($("c-prior").value, "the prior"),
+        parseProb($("c-like").value, "the likelihood"),
+        parseProb($("c-fp").value, "the false-positive rate")));
+    } else if (activeTab === "multi") {
+      if (blank("m-prior") && readableEmpty()) return renderPlaceholder();
+      const prior = parseProb($("m-prior").value, "the prior");
+      const ev = readEvidenceRows();
+      if (!ev.length) return renderError("Add at least one clue (name, likelihood, false-positive).");
+      renderMulti(multi(prior, ev));
+    } else if (activeTab === "repeat") {
+      if (blank("r-prior", "r-like", "r-fp")) return renderPlaceholder();
+      const prior = parseProb($("r-prior").value, "the prior");
+      const like = parseProb($("r-like").value, "the likelihood");
+      const fp = parseProb($("r-fp").value, "the false-positive rate");
+      const n = Math.max(1, Math.min(12, parseInt($("r-rounds").value || "1", 10)));
+      const ev = Array.from({ length: n }, (_, i) => ({ name: `positive result #${i + 1}`, like, fp }));
+      const r = multi(prior, ev);
+      renderMulti(r);
+      results.querySelector(".notes").insertAdjacentHTML("beforeend",
+        `<li>Real repeated tests are rarely perfectly independent — treat this as a sensitivity check, not gospel.</li>`);
+    } else if (activeTab === "counts") {
+      const ids = ["k-h", "k-total", "k-eh", "k-hd", "k-enh", "k-nhd"];
+      updateDerived();
+      if (blank(...ids)) return renderPlaceholder();
+      const [h, total, eh, hd, enh, nhd] = [
+        parseCount($("k-h").value, "the “had the condition” count"),
+        parseCount($("k-total").value, "the total count"),
+        parseCount($("k-eh").value, "the “showed the clue” count"),
+        parseCount($("k-hd").value, "the “out of those with it” count"),
+        parseCount($("k-enh").value, "the “showed the clue anyway” count"),
+        parseCount($("k-nhd").value, "the “out of those without it” count")];
+      const prior = safeDiv(h, total, "the prior");
+      const like = safeDiv(eh, hd, "the likelihood");
+      const fp = safeDiv(enh, nhd, "the false-positive rate");
+      if (prior > 1 || like > 1 || fp > 1) throw new Error("A count can’t be bigger than its total — check the pairs.");
+      renderClassic(classic(prior, like, fp), {
+        extraRows: `<tr><th scope="row">Derived from your counts</th><td>
+          prior ${num(h)}/${num(total)} = ${pct(prior)} · likelihood ${num(eh)}/${num(hd)} = ${pct(like)} · false-positive ${num(enh)}/${num(nhd)} = ${pct(fp)}
+          <span class="why">The counts were converted to percentages first, then run through the same classic update.</span></td></tr>`,
+      });
+    }
+  } catch (e) {
+    renderError(e.message);
+  }
+}
+
+function readableEmpty() {
+  for (const div of document.querySelectorAll("#ev-list .evrow input"))
+    if (div.value.trim() !== "") return false;
+  return true;
+}
+
+function updateDerived() {
+  const show = (a, b, out, label) => {
+    const av = parseFloat($(a).value), bv = parseFloat($(b).value);
+    $(out).textContent = (isFinite(av) && isFinite(bv) && bv > 0 && av <= bv)
+      ? `→ ${label} = ${pct(av / bv)}` : "";
+  };
+  show("k-h", "k-total", "k-d-prior", "prior");
+  show("k-eh", "k-hd", "k-d-like", "likelihood");
+  show("k-enh", "k-nhd", "k-d-fp", "false-positive rate");
+}
+
+document.querySelector(".pane-inputs").addEventListener("input", recompute);
+
+/* ============ examples ============ */
+const EXAMPLES = [
+  {
+    group: "Everyday life",
+    items: [
+      {
+        title: "“My test came back positive — should I panic?”",
+        blurb: "A disease affects 1 in 100 people. The test catches 90% of real cases but also flags 9% of healthy people. You tested positive.",
+        nums: "1% prior · 90% hit · 9% cry-wolf",
+        take: "→ still only ~9%",
+        tab: "classic", set: { "c-prior": "1%", "c-like": "90%", "c-fp": "9%" },
+      },
+      {
+        title: "“Is this email a phishing scam?”",
+        blurb: "About 5% of your mail is phishing, and this one has three separate red flags. Watch three weak clues multiply into near-certainty.",
+        nums: "5% prior + 3 clues",
+        take: "→ ~99.9%",
+        tab: "multi", prior: { "m-prior": "5%" },
+        evidence: [
+          { name: "urgent wire-transfer ask", like: "70%", fp: "2%" },
+          { name: "misspelled sender domain", like: "60%", fp: "1%" },
+          { name: "link to a look-alike site", like: "80%", fp: "3%" },
+        ],
+      },
+      {
+        title: "“The smoke alarm went off while I’m cooking.”",
+        blurb: "Real kitchen fires are rare (say 1 in 200 alarm-worthy moments). The alarm always catches real fires — but it also goes off for toast 15% of the time.",
+        nums: "0.5% prior · 99% hit · 15% cry-wolf",
+        take: "→ ~3% — check, don’t panic",
+        tab: "classic", set: { "c-prior": "0.5%", "c-like": "99%", "c-fp": "15%" },
+      },
+    ],
+  },
+  {
+    group: "Programming",
+    items: [
+      {
+        title: "“CI failed. Is my change actually broken?”",
+        blurb: "Maybe 1 in 10 of your changes has a real bug. The suite catches 95% of real bugs — but this flaky suite also fails 10% of the time on perfectly good code.",
+        nums: "10% prior · 95% hit · 10% flake",
+        take: "→ ~51% — a coin flip",
+        tab: "classic", set: { "c-prior": "10%", "c-like": "95%", "c-fp": "10%" },
+      },
+      {
+        title: "“Paged at 3 a.m. — real outage or noisy alert?”",
+        blurb: "Only ~5% of pages are real incidents. The alert fires for 90% of true outages, but false-alarms 20% of the time. Should you wake the whole team?",
+        nums: "5% prior · 90% hit · 20% noise",
+        take: "→ ~19% — look before escalating",
+        tab: "classic", set: { "c-prior": "5%", "c-like": "90%", "c-fp": "20%" },
+      },
+      {
+        title: "“Build a tiny spam filter from counts.”",
+        blurb: "Out of 200 emails, 30 were spam. Of the spam, 24 contained the word “free”; of the 170 real emails, only 17 did. A new email says “free”…",
+        nums: "counts: 30/200 · 24/30 · 17/170",
+        take: "→ ~59% spam from one word",
+        tab: "counts", set: { "k-h": "30", "k-total": "200", "k-eh": "24", "k-hd": "30", "k-enh": "17", "k-nhd": "170" },
+      },
+    ],
+  },
+  {
+    group: "Science & data",
+    items: [
+      {
+        title: "“The study found an effect, p < 0.05. Is it real?”",
+        blurb: "Suppose 1 in 10 hypotheses in a field are true. A well-powered study detects 80% of true effects, and by definition ~5% of null effects still come up ‘significant’.",
+        nums: "10% prior · 80% power · 5% α",
+        take: "→ ~64% — significant ≠ certain",
+        tab: "classic", set: { "c-prior": "10%", "c-like": "80%", "c-fp": "5%" },
+      },
+      {
+        title: "“Which machine made the defective part?”",
+        blurb: "Machine B makes 30% of your parts with a 6% defect rate; Machine A makes the rest with 2%. A random part is defective — did B make it? (A classic textbook problem.)",
+        nums: "30% prior · 6% vs 2% defects",
+        take: "→ ~56% it was B",
+        tab: "classic", set: { "c-prior": "30%", "c-like": "6%", "c-fp": "2%" },
+      },
+      {
+        title: "“Would a second (and third) opinion settle it?”",
+        blurb: "Take the scary-medical-test example and repeat the same test three times, all positive. Watch 1% climb — and see why doctors retest before treating.",
+        nums: "1% · 90% · 9%, ×3 positives",
+        take: "→ ~91% after three",
+        tab: "repeat", set: { "r-prior": "1%", "r-like": "90%", "r-fp": "9%", "r-rounds": "3" },
+      },
+    ],
+  },
+];
+
+function loadExample(ex) {
+  selectTab(ex.tab);
+  if (ex.set) for (const [id, v] of Object.entries(ex.set)) $(id).value = v;
+  if (ex.prior) for (const [id, v] of Object.entries(ex.prior)) $(id).value = v;
+  if (ex.evidence) {
+    $("ev-list").innerHTML = "";
+    for (const ev of ex.evidence) addEvidenceRow(ev);
+  }
+  recompute();
+  document.getElementById("calc").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+}
+
+(function buildExamples() {
+  const root = $("ex-root");
+  for (const g of EXAMPLES) {
+    const label = document.createElement("p");
+    label.className = "ex-group-label";
+    label.textContent = g.group;
+    root.appendChild(label);
+    const grid = document.createElement("div");
+    grid.className = "ex-grid";
+    for (const ex of g.items) {
+      const card = document.createElement("button");
+      card.type = "button";
+      card.className = "ex-card";
+      card.innerHTML = `<h3>${esc(ex.title)}</h3><p>${esc(ex.blurb)}</p>
+        <span class="ex-nums">${esc(ex.nums)} <span class="arrow">${esc(ex.take)}</span></span>`;
+      card.addEventListener("click", () => loadExample(ex));
+      grid.appendChild(card);
+    }
+    root.appendChild(grid);
+  }
+})();
+
+/* seed the “several clues” tab with two empty rows */
+addEvidenceRow(); addEvidenceRow();
+
+/* hero number: the medical-test example, computed live so the headline is honest */
+(function hero() {
+  const r = classic(0.01, 0.9, 0.09);
+  $("hero-flip").textContent = pct(r.posterior);
+})();
+</script>
+</body>
+</html>
